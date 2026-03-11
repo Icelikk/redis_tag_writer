@@ -42,18 +42,15 @@ for period in "${PERIODS[@]}"; do
             break
         fi
 
-        # Подсчет превышений времени (из лога программы)
+  
         exceed_count=$(grep -c "Превышение времени на" RedisWriter.log)
         echo "    Превышений: $exceed_count"
 
-        # Получение используемой памяти Redis
         memory_bytes=$(get_redis_memory)
         echo "    Память Redis: $memory_bytes байт"
 
-        # Дописываем размер в лог-файл
         echo "REDIS_MEMORY=$memory_bytes" >> "$log_file"
 
-        # Извлечение статистики из вывода программы (записанного в лог-файл)
         count_tags_val=$(grep -oP 'COUNT_TAGS=\K\d+' "$log_file" | head -1)
         period_ms_val=$(grep -oP 'PERIOD_MS=\K\d+' "$log_file" | head -1)
         work_time_sec=$(grep -oP 'WORK_TIME_SEC=\K\d+' "$log_file" | head -1)
@@ -65,10 +62,8 @@ for period in "${PERIODS[@]}"; do
         time_avg=$(grep -oP 'TIME_AVG=\K[\d.]+' "$log_file" | head -1)
         time_stddev=$(grep -oP 'TIME_STDDEV=\K[\d.]+' "$log_file" | head -1)
 
-        # Запись в общий CSV
         echo "$period,$tags,$DURATION,$total_packets,$total_records,$total_time_ms,$time_min,$time_max,$time_avg,$time_stddev,$memory_bytes,$exceed_count" >> "$all_results"
 
-        # Если превышений больше порога, прекращаем тесты для этого периода
         if [ "$exceed_count" -gt "$THRESHOLD" ]; then
             echo "    Порог превышен, остановка для периода $period"
             break
