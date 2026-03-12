@@ -14,7 +14,7 @@ opt_results="optimization_results_redis.csv"
 all_results="results_redis.csv"
 
 echo "period_ms,max_tags,memory_bytes" > "$opt_results"
-echo "period,tags,duration_sec,total_packets,total_records,total_time_ms,time_min,time_max,time_avg,time_stddev,memory_bytes,exceed_count" > "$all_results"
+echo "period,tags,duration_sec,total_packets,total_records,total_time_ms,time_min,time_max,time_avg,time_stddev,memory_bytes,exceed_count " > "$all_results"
 
 get_redis_memory() {
     redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" INFO memory | grep "used_memory:" | cut -d':' -f2
