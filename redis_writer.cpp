@@ -74,64 +74,82 @@ int main(int argc, char* argv[]) {
 
         PLOGI << "Пакет номер " << packet_number << " ";
 
-        auto start_gen = std::chrono::steady_clock::now();
+         auto start_gen = std::chrono::steady_clock::now();
 
-        std::vector<std::string> keys;
-        std::vector<int16_t> q_vals;
-        std::vector<float> v_vals;
-        keys.reserve(count_tags);
-        q_vals.reserve(count_tags);
-        v_vals.reserve(count_tags);
+    std::vector<uint32_t> ids;      
+    std::vector<int16_t> q_vals;
+    std::vector<float> v_vals;
+    ids.reserve(count_tags);
+    q_vals.reserve(count_tags);
+    v_vals.reserve(count_tags);
 
-        for (int i = 0; i < count_tags; ++i) {
-            uint32_t id = (packet_number * count_tags + i) % 32768;
-            int16_t q_val = dis_i(gen);
-            float v_val = dis_r(gen);
-            std::string key = "tag:" + std::to_string(id) + ":" + std::to_string(timestamp);
-
-            keys.push_back(key);
-            q_vals.push_back(q_val);
-            v_vals.push_back(v_val);
-        }
-
+    for (int i = 0; i < count_tags; ++i) {
+        uint32_t id = (packet_number * count_tags + i) % 32768;
+        int16_t q_val = dis_i(gen);
+        float v_val = dis_r(gen);
+        ids.push_back(id);
+        q_vals.push_back(q_val);
+        v_vals.push_back(v_val);
+    }
         auto end_gen = std::chrono::steady_clock::now();
         auto gen_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_gen - start_gen).count();
 
         PLOGI << "Генерация данных за " << gen_duration << " мс";
-
+        
         if (gen_duration < gen_min) gen_min = gen_duration;
         if (gen_duration > gen_max) gen_max = gen_duration;
         gen_total += gen_duration;
         gen_sum_sqrt += (double)gen_duration * gen_duration;
 
-        auto start_insert = std::chrono::steady_clock::now();
+        auto start_serialize = std::chrono::steady_clock::now();
 
-        
+        std::vector<std::string> records;
+        records.reserve(count_tags);
         for (int i = 0; i < count_tags; ++i) {
-            redisAppendCommand(c, "HSET %s q %d v %f", keys[i].c_str(), q_vals[i], v_vals[i]);
+            std::string rec = std::to_string(ids[i]) + "," +
+                            std::to_string(q_vals[i]) + "," +
+                            std::to_string(v_vals[i]) + "," +
+                            std::to_string(timestamp);
+            records.push_back(std::move(rec));
         }
-        
 
-        for (int i = 0; i < count_tags; ++i) {
-            redisReply *reply;
-            if (redisGetReply(c, (void**)&reply) == REDIS_OK) {
-                freeReplyObject(reply);
-            } else {
-                PLOG_WARNING << "Ошибка получения ответа от Redis";
-            }
+        auto end_serialize = std::chrono::steady_clock::now();
+        auto serialize_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_serialize - start_serialize).count();
+        PLOGI << "Сериализация данных за " << serialize_duration << " мс";
+
+            auto start_insert = std::chrono::steady_clock::now();
+
+    
+        std::vector<const char*> argv;
+        std::vector<size_t> argvlen;
+        argv.push_back("LPUSH");
+        argvlen.push_back(5);
+        argv.push_back("batch_list");   
+        argvlen.push_back(10);          
+        
+        for (const auto& rec : records) {
+            argv.push_back(rec.c_str());
+            argvlen.push_back(rec.size());
+        }
+
+        redisReply *reply = (redisReply*)redisCommandArgv(c, argv.size(), &argv[0], &argvlen[0]);
+
+        if (!reply) {
+            PLOG_WARNING << "Ошибка выполнения LPUSH";
+        } else {
+            freeReplyObject(reply);
         }
 
         auto end_insert = std::chrono::steady_clock::now();
         auto insert_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_insert - start_insert).count();
-
-        PLOGI << "Вставка в Redis за " << insert_duration << " мс";
+        PLOGI << "Пакетная вставка за " << insert_duration << " мс";
 
         if (insert_duration < insert_min) insert_min = insert_duration;
         if (insert_duration > insert_max) insert_max = insert_duration;
         insert_total += insert_duration;
         insert_sum_sqrt += (double)insert_duration * insert_duration;
 
-        auto packet_duration = gen_duration + insert_duration;
+        auto packet_duration = gen_duration  + insert_duration + serialize_duration;
 
         if (packet_duration < total_min) total_min = packet_duration;
         if (packet_duration > total_max) total_max = packet_duration;
