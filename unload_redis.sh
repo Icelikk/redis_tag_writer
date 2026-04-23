@@ -14,4 +14,4 @@ else
     fi
 fi
 
-docker exec dev-redis ./build/redis_to_pg "$PACKETS"
+docker exec dev-redis /usr/local/bin/redis_to_pg "$PACKETS"

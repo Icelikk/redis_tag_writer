@@ -54,8 +54,7 @@ for period in "${PERIODS[@]}"; do
 
         log_file="test_p${period}_t${tags}.log"
 
-        timeout $((DURATION + 10)) /app/build/redis_writer "$tags" "$period" "$DURATION" > "$log_file" 2>&1
-        exit_code=$?
+        timeout $((DURATION + 10)) /usr/local/bin/redis_writer "$tags" "$period" "$DURATION"
 
         if [ $exit_code -ne 0 ] && [ $exit_code -ne 124 ]; then
             echo "    Ошибка выполнения (код $exit_code), возможно программа упала"
@@ -83,7 +82,7 @@ for period in "${PERIODS[@]}"; do
 
         unload_time_ms=""
         if [ $WITHOUT_PG -eq 0 ] && [ -n "$total_packets" ] && [ "$total_packets" -gt 0 ]; then
-            unload_output=$(/app/build/redis_to_pg "$total_packets" 2>&1)
+            unload_output=$(/usr/local/bin/redis_to_pg "$total_packets" 2>&1)
             unload_time_ms=$(echo "$unload_output" | grep -oP '\d+(?= ms)' | head -1)
             if [ -z "$unload_time_ms" ]; then
                 unload_time_ms="error"

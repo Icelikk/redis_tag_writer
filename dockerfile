@@ -30,10 +30,12 @@ RUN git clone https://github.com/SergiusTheBest/plog.git /tmp/plog --depth=1 && 
 WORKDIR /app
 COPY . /app
 
-RUN rm -rf /app/build && \
-    mkdir /app/build && \
-    cd /app/build && \
-    cmake .. && \
-    make
+RUN mkdir /tmp/build && \
+    cd /tmp/build && \
+    cmake /app && \
+    make && \
+    cp /tmp/build/redis_writer /usr/local/bin/redis_writer && \
+    cp /tmp/build/redis_to_pg /usr/local/bin/redis_to_pg && \
+    rm -rf /tmp/build
 
 CMD ["/bin/bash"]
