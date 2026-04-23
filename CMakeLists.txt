@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_BUILD_TYPE Release)
 
-set(PLOG_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
+set(PLOG_INCLUDE_DIR /usr/local/include)
 
 find_library(HIREDIS_LIB hiredis)
 find_path(HIREDIS_INCLUDE hiredis/hiredis.h)
