@@ -1,0 +1,45 @@
+services:
+  redis:
+    image: registry.astralinux.ru/library/astra/ubi18-redis7015:1.8.5
+    container_name: redis-test
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save "" --appendonly no --protected-mode no
+
+  postgres:
+    image: registry.astralinux.ru/library/astra/ubi18-postgresql15:latest
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  dev:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: dev-redis
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - POSTGRES_HOST=postgres
+    volumes:
+      - .:/app
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+volumes:
+  redis_data:
+  pg_data:

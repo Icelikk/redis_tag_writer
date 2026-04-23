@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS guts (
+    id SMALLINT,
+    v SMALLINT,
+    q REAL,
+    t BIGINT
+);

@@ -15,7 +15,6 @@
 #include <plog/Formatters/TxtFormatter.h>
 
 int main(int argc, char* argv[]) {
-   
     plog::RollingFileAppender<plog::TxtFormatter> fileAppender("RedisWriter.log");
     plog::ColorConsoleAppender<plog::TxtFormatter> consoleAppender;
     plog::init(plog::debug, &fileAppender).addAppender(&consoleAppender);
@@ -31,7 +30,7 @@ int main(int argc, char* argv[]) {
     PLOGI << "Период цикла = " << period_ms << " мс";
     PLOGI << "Время работы = " << work_time << " с";
 
-    const char* redis_host = "redis-test";
+    const char* redis_host = "redis";
     int redis_port = 6379;
     redisContext *c = redisConnect(redis_host, redis_port);
     if (c == NULL || c->err) {
@@ -74,23 +73,22 @@ int main(int argc, char* argv[]) {
 
         PLOGI << "Пакет номер " << packet_number << " ";
 
-         auto start_gen = std::chrono::steady_clock::now();
+        auto start_gen = std::chrono::steady_clock::now();
+        std::vector<uint32_t> ids;      
+        std::vector<int16_t> q_vals;
+        std::vector<float> v_vals;
+        ids.reserve(count_tags);
+        q_vals.reserve(count_tags);
+        v_vals.reserve(count_tags);
 
-    std::vector<uint32_t> ids;      
-    std::vector<int16_t> q_vals;
-    std::vector<float> v_vals;
-    ids.reserve(count_tags);
-    q_vals.reserve(count_tags);
-    v_vals.reserve(count_tags);
-
-    for (int i = 0; i < count_tags; ++i) {
-        uint32_t id = (packet_number * count_tags + i) % 32768;
-        int16_t q_val = dis_i(gen);
-        float v_val = dis_r(gen);
-        ids.push_back(id);
-        q_vals.push_back(q_val);
-        v_vals.push_back(v_val);
-    }
+        for (int i = 0; i < count_tags; ++i) {
+            uint32_t id = (packet_number * count_tags + i) % 32768;
+            int16_t q_val = dis_i(gen);
+            float v_val = dis_r(gen);
+            ids.push_back(id);
+            q_vals.push_back(q_val);
+            v_vals.push_back(v_val);
+        }
         auto end_gen = std::chrono::steady_clock::now();
         auto gen_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_gen - start_gen).count();
 
@@ -107,9 +105,9 @@ int main(int argc, char* argv[]) {
         records.reserve(count_tags);
         for (int i = 0; i < count_tags; ++i) {
             std::string rec = std::to_string(ids[i]) + "," +
-                            std::to_string(q_vals[i]) + "," +
-                            std::to_string(v_vals[i]) + "," +
-                            std::to_string(timestamp);
+                              std::to_string(v_vals[i]) + "," +
+                              std::to_string(q_vals[i]) + "," +
+                              std::to_string(timestamp);
             records.push_back(std::move(rec));
         }
 
@@ -117,9 +115,7 @@ int main(int argc, char* argv[]) {
         auto serialize_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_serialize - start_serialize).count();
         PLOGI << "Сериализация данных за " << serialize_duration << " мс";
 
-            auto start_insert = std::chrono::steady_clock::now();
-
-    
+        auto start_insert = std::chrono::steady_clock::now();
         std::vector<const char*> argv;
         std::vector<size_t> argvlen;
         argv.push_back("LPUSH");
@@ -149,7 +145,7 @@ int main(int argc, char* argv[]) {
         insert_total += insert_duration;
         insert_sum_sqrt += (double)insert_duration * insert_duration;
 
-        auto packet_duration = gen_duration  + insert_duration + serialize_duration;
+        auto packet_duration = gen_duration + insert_duration + serialize_duration;
 
         if (packet_duration < total_min) total_min = packet_duration;
         if (packet_duration > total_max) total_max = packet_duration;
@@ -167,7 +163,7 @@ int main(int argc, char* argv[]) {
     }
 
     redisFree(c);
-
+    
     double gen_avg = (packet_number > 0) ? gen_total / packet_number : 0;
     double gen_variance = (packet_number > 0) ? (gen_sum_sqrt / packet_number) - (gen_avg * gen_avg) : 0;
     double gen_stddev = (gen_variance > 0) ? std::sqrt(gen_variance) : 0;
