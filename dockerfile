@@ -23,7 +23,9 @@ RUN git clone --branch 7.7.0 https://github.com/jtv/libpqxx.git && \
     make install && \
     cd ../.. && rm -rf libpqxx
 
-RUN git clone https://github.com/SergiusTheBest/plog.git /usr/local/include/plog
+RUN git clone https://github.com/SergiusTheBest/plog.git /tmp/plog --depth=1 && \
+    mv /tmp/plog/include/plog /usr/local/include/plog && \
+    rm -rf /tmp/plog
 
 WORKDIR /app
 COPY . /app
