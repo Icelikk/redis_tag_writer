@@ -34,7 +34,7 @@ docker exec -it dev-redis bash
  
 ```bash
 cd /путь/к/другому/проекту
-docker-compose down
+docker-compose down -v
 ```
  
 **Если нужно запустить оба проекта одновременно** — измените порт postgres в `docker-compose.yml` этого проекта:
