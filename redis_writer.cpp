@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
         auto end_insert = std::chrono::steady_clock::now();
         auto insert_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_insert - start_insert).count();
         PLOGI << "Пакетная вставка за " << insert_duration << " мс";
-
+        
         if (insert_duration < insert_min) insert_min = insert_duration;
         if (insert_duration > insert_max) insert_max = insert_duration;
         insert_total += insert_duration;

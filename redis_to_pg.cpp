@@ -57,6 +57,9 @@ int main() {
     }
     flush_buffer();
 
+    redisReply *delReply = (redisReply*)redisCommand(c, "UNLINK batch_list");
+    if (delReply) freeReplyObject(delReply);
+
     freeReplyObject(reply);
     redisFree(c);
 
