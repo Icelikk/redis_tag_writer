@@ -12,11 +12,19 @@ TAGS_LIST=(100 1000 2000 5000 10000)
 DURATION=30
 THRESHOLD=10
 
-REDIS_HOST="redis-test"
+REDIS_HOST="redis"
 REDIS_PORT="6379"
 
-opt_results="optimization_results_redis.csv"
-all_results="results_redis.csv"
+BUILD_DIR="/app/build"
+RESULTS_DIR="/app/test"
+
+BIN_WRITER="${BUILD_DIR}/redis_writer"
+BIN_TO_PG="${BUILD_DIR}/redis_to_pg"
+
+opt_results="${RESULTS_DIR}/optimization_results_redis.csv"
+all_results="${RESULTS_DIR}/results_redis.csv"
+
+mkdir -p "${RESULTS_DIR}"
 
 if [ $WITHOUT_PG -eq 0 ]; then
     echo "period_ms,max_tags,memory_bytes" > "$opt_results"
@@ -64,29 +72,25 @@ for period in "${PERIODS[@]}"; do
     echo "Тестирование периода $period мс"
     max_success=0
     success_found=false
-
     for tags in "${TAGS_LIST[@]}"; do
         echo "  Запуск с размером пакета $tags"
-
         flush_redis
         flush_postgres
-
         rm -f RedisWriter.log
-
         log_file="test_p${period}_t${tags}.log"
-
-        timeout $((DURATION + 10)) /usr/local/bin/redis_writer "$tags" "$period" "$DURATION" > "$log_file" 2>&1
+        
+        timeout $((DURATION + 10)) "$BIN_WRITER" "$tags" "$period" "$DURATION" > "$log_file" 2>&1
         exit_code=$?
-
+        
         if [ $exit_code -ne 0 ] && [ $exit_code -ne 124 ]; then
             echo "    Ошибка выполнения (код $exit_code), возможно программа упала"
             break
         fi
-
+        
         exceed_count=$(grep -c "Превышение времени на" RedisWriter.log 2>/dev/null | tr -d '\n\r')
         exceed_count=${exceed_count:-0}
         echo "    Превышений: $exceed_count"
-
+        
         memory_bytes=$(get_redis_memory)
         echo "    Память Redis: $memory_bytes байт"
         echo "REDIS_MEMORY=$memory_bytes" >> "$log_file"
@@ -108,8 +112,8 @@ for period in "${PERIODS[@]}"; do
 
         unload_time_ms=""
         if [ $WITHOUT_PG -eq 0 ] && [ -n "$total_packets" ] && [ "$total_packets" -gt 0 ]; then
-            unload_output=$(/usr/local/bin/redis_to_pg "$total_packets" 2>&1)
-            unload_time_ms=$(echo "$unload_output" | grep -oP '\d+(?= ms)' | head -1 | tr -d '\n\r')
+            unload_output=$("$BIN_TO_PG" "$total_packets" 2>&1)
+            unload_time_ms=$(echo "$unload_output" | grep -oP '\d+(?=\s*(ms|мс))' | head -1 | tr -d '\n\r')
             [ -z "$unload_time_ms" ] && unload_time_ms="error"
             echo "    Выгрузка в PostgreSQL: ${unload_time_ms} мс"
             echo "UNLOAD_TIME_MS=$unload_time_ms" >> "$log_file"
@@ -139,4 +143,4 @@ for period in "${PERIODS[@]}"; do
     fi
 done
 
-echo "Готово. Результаты в $all_results и $opt_results"
+echo "Готово. Результаты в $RESULTS_DIR"
