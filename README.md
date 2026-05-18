@@ -9,66 +9,60 @@
 
 **Запуск:** Скопируйте папку с github и запустите docker-compose
 ```bash
+
+# Клонирование репозитория
 git clone https://github.com/Icelikk/redis_tag_writer.git
-cd redis-benchmark
-docker-compose up -d 
-```
+cd redis_tag_writer
 
-Подключитесь к контейнеру и запустите тест:
+# Запуск в режиме разработки
+docker-compose up -d dev
 
-```bash
+# Подключение к контейнеру
 docker exec -it dev-redis bash
+
+# Внутри контейнера: сборка проекта
+cd /app
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
 
 ./auto_test_redis.sh                  
 ./auto_test_redis.sh --without-pg     
 ```
 Есть возможность чистой генерации и записи в Redis, без выгрузки в Postgres по флагу --without-pg 
-Результаты сохраняются в папке `/app` внутри контейнера в виде CSV-файлов.
+Результаты сохраняются в папке `test/` в виде CSV-файлов с процентилями P5-P95.
+```
 
----
-## ⚠️ Важно при использовании нескольких проектов
- 
-Если на этом же сервере запущен другой проект (например, `memc_tag_writer_`) — у него может быть свой контейнер `postgres` на порту `5432`. При попытке поднять этот проект получишь ошибку конфликта портов или имён контейнеров.
- 
-**Перед запуском остановите старый проект:**
- 
-```bash
-cd /путь/к/другому/проекту
-docker-compose down -v
-```
- 
-**Если нужно запустить оба проекта одновременно** — измените порт postgres в `docker-compose.yml` этого проекта:
- 
-```yaml
-postgres:
-  ports:
-    - "5433:5432"   # внешний порт 5433, внутренний остаётся 5432
-```
- 
-И имя контейнера, чтобы не было конфликта:
- 
-```yaml
-postgres:
-  container_name: postgres-redis   # вместо postgres
-```
- 
-> Внутри контейнеров всё общение идёт по внутренним именам сервисов (`postgres`, `redis-test`), так что менять строки подключения в коде не нужно — только `container_name` и проброс портов наружу.
- 
----
- 
-
-## Структура проекта
+## 📁 Структура проекта
 
 ```
-.
-├── dockerfile                # Образ приложения (C++ + зависимости + сборка)
-├── docker-compose.yml        # Описание сервисов (redis, postgres, dev)
-├── CMakeLists.txt            # Сборка redis_writer и redis_to_pg
-├── redis_writer.cpp          # Бенчмарк записи в Redis
-├── redis_to_pg.cpp           # Выгрузка из Redis в PostgreSQL
-├── auto_test_redis.sh        # Скрипт автоматического тестирования
-├── unload_redis.sh           # Скрипт ручной выгрузки
-└── init.sql                  # Инициализация схемы PostgreSQL (таблица guts)
+redis_tag_writer/
+
+├── README.md                     
+├── docker-compose.yml            
+│
+├── src/                         
+│   ├── redis_writer.cpp          
+│   └── redis_to_pg.cpp           
+│
+├── docker/                       
+│   ├── Dockerfile                
+│   └── Dockerfile.dev            
+│
+├── scripts/                      
+│   ├── auto_test_redis.sh        
+│   └── unload_redis.sh           
+│
+├── config/                       
+│   └── init.sql                  
+│
+├── build/                        
+│   ├── redis_writer             
+│   └── redis_to_pg               
+│
+└── test/                         
+    ├── results_redis.csv        
+    ├── optimization_results_redis.csv
+    └── *.log                     
 ```
 1. **redis_writer** — записывает пакеты данных в Redis (`LPUSH batch_list`) с заданными периодом и размером пакета.
 2. **redis_to_pg** — читает все записи из Redis (`LRANGE batch_list`) и выполняет массовую вставку в PostgreSQL пакетами.
@@ -111,41 +105,75 @@ period,tags,duration_sec,total_packets,total_records,total_time_ms,time_min,time
 
 ---
 
-## Управление контейнерами
+## 🔧 Управление контейнерами
 
-**Пересборка образа:**
-
-```bash
-docker-compose down -v
-ocker-compose build --no-cache
-docker-compose up -d 
-```
-
-**Подключение к контейнеру:**
+### Основные команды
 
 ```bash
-docker exec -it dev-redis bash
-```
+# Запуск всех сервисов
+docker-compose up -d
 
-**Ручная выгрузка из Redis в PostgreSQL:**
+# Остановка
+docker-compose down
 
-```bash
-# Снаружи контейнера:
-./unload_redis.sh <число_пакетов>
+# Пересборка образов
+docker-compose build --no-cache
 
-# Или изнутри контейнера:
-/usr/local/bin/redis_to_pg
-```
-
-**Просмотр логов:**
-
-```bash
+# Просмотр логов
 docker-compose logs -f dev
+docker-compose logs -f redis
+docker-compose logs -f postgres
+
+# Подключение к контейнеру
+docker exec -it dev-redis bash
+
+# Очистка volumes (удаляет все данные!)
+docker-compose down -v
 ```
 
-**Очистка Redis:**
+### Ручная выгрузка данных
 
 ```bash
-docker exec -it dev-redis redis-cli -h redis-test FLUSHDB
+# Снаружи контейнера
+./scripts/unload_redis.sh <число_пакетов>
+
+# Изнутри контейнера
+/app/build/redis_to_pg
 ```
+
+### Очистка Redis
+
+```bash
+docker exec -it dev-redis redis-cli -h redis FLUSHDB
+```
+
+### Проверка данных в PostgreSQL
+
+```bash
+docker exec -it postgres psql -U postgres -d test -c "SELECT COUNT(*) FROM guts;"
+```
+## 🛠️ Сборка и разработка
+
+### Development режим
+
+```bash
+# Запуск dev-контейнера с примонтированным кодом
+docker-compose up -d dev
+docker exec -it dev-redis bash
+
+# Внутри контейнера
+cd /app
+
+# Полная пересборка
+rm -rf build
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+
+# Быстрая пересборка после изменений
+cmake --build build -j$(nproc)
+
+# Запуск тестов
+./scripts/auto_test_redis.sh
+```
+---
 
